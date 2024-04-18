@@ -1,12 +1,17 @@
 env_name: CartPole-v1 # RL environment name
-base_path: /data/sparajuli/training # Base path to save logs and checkpoints
+base_path: /data/jiahuic/vlmrm_logs # Base path to save logs and checkpoints
 seed: 42 # Seed for reproducibility
-description: Humanoid training using CLIP reward
+description: Cartpole training using CLIP reward
 tags: # Wandb tags
   - clip
 reward:
   name: clip
   pretrained_model: ViT-B-32/laion2b_s34b_b79k # CLIP model name
+  # Reward function used, given the pretrained_model's embeddings
+    # goal_baseline_reg: eq. 3 from VLM RM paper
+    # cosine: cosine similarity between target and state embeddings
+    # l2: inverse of l2 distance between target and state embeddings 
+  reward_func: cosine 
   # CLIP batch size per synchronous inference step.
   # Batch size must be divisible by n_workers (GPU count)
   # so that it can be shared among workers, and must be a divisor
@@ -21,7 +26,7 @@ reward:
   # Path to pre-saved model weights. When executing multiple runs,
   # mount a volume to this path to avoid downloading the model
   # weights multiple times.
-  cache_dir: /data/sparajuli/.cache
+  cache_dir: /data/jiahuic/.cache
 rl:
   policy_name: MlpPolicy
   n_steps: 100000 # Total number of simulation steps to be collected.

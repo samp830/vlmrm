@@ -60,7 +60,8 @@ class Config(BaseModel):
     def run_name(self) -> str:
         reward_str = "CLIP" if self.is_clip_rewarded else "GT"
         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        return f"{self.env_name[:-3]}_{reward_str}_{current_time}"#_{self.run_hash}"
+        reward_func = self.reward.reward_func
+        return f"{self.env_name[:-3]}_{reward_str}_{reward_func}_{current_time}"#_{self.run_hash}"
 
     @computed_field
     @property
@@ -155,6 +156,7 @@ class GroundTruthConfig(BaseModel):
 class CLIPRewardConfig(BaseModel):
     name: Literal["clip"]
     pretrained_model: str
+    reward_func: Literal["goal_baseline_reg", "cosine", "l2"] 
     batch_size: int
     alpha: float
     target_prompts: List[str]

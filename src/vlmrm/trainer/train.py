@@ -83,7 +83,7 @@ def primary_worker(
         project="vlmrm",
         tags=config.tags,
         notes=config.description,
-        name=config.run_name,
+        name=config.run_name, # this is constructed based on configs in config.py
         id=config.run_name,
         sync_tensorboard=True,
         # TODO Add support to resume a run: https://docs.wandb.ai/guides/runs/resuming

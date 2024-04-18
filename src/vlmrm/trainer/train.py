@@ -17,6 +17,8 @@ from stable_baselines3.common.callbacks import CallbackList
 import vlmrm.contrib.sb3.signal_handler as signal_handler
 import wandb
 from vlmrm import multiprocessing, util
+from vlmrm import util
+
 from vlmrm.contrib.sb3.base import get_clip_rewarded_rl_algorithm_class
 from vlmrm.contrib.sb3.callbacks import VideoRecorderCallback, WandbCallback
 from vlmrm.contrib.sb3.make_vec_env import make_vec_env
@@ -141,13 +143,21 @@ def primary_worker(
     run.finish()
 
 
-def train(config: str):
+def train(config_input: str):
     command = " ".join(sys.argv)
     logger.info(f"Command called: {command}")
     assert torch.cuda.is_available()
     util.set_egl_env_vars()
 
-    config_dict = yaml.load(config, Loader=yaml.FullLoader)
+    if config_input == '-':
+        # Read configuration from standard input
+        config_dict = yaml.load(sys.stdin, Loader=yaml.FullLoader)
+    else:
+        # Read configuration from a file
+        with open(config_input, 'r') as file:
+            config_dict = yaml.load(file, Loader=yaml.FullLoader)
+    # print(config_dict)
+    # import pdb; pdb.set_trace()
     config_obj = Config(**config_dict)
 
     # When pickling the object, the __pydantic_serializer__ attribute gets lost.

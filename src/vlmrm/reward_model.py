@@ -67,6 +67,7 @@ class CLIPReward(nn.Module):
         self.register_buffer("baseline", baseline)
         self.register_buffer("direction", direction)
 
+
         self.alpha = alpha
         projection = self.compute_projection(alpha)
         self.register_buffer("projection", projection)
@@ -110,6 +111,7 @@ def load_reward_model(
     model = open_clip.create_model(
         model_name=model_name_prefix, pretrained=pretrained, cache_dir=cache_dir
     )
+
     target_prompts = CLIPReward.tokenize_prompts(target_prompts)
     baseline_prompts = CLIPReward.tokenize_prompts(baseline_prompts)
     model = CLIPEmbed(model)
@@ -139,10 +141,30 @@ def compute_rewards(
     num_workers: int,
     worker_frames_tensor=None,
 ) -> torch.Tensor:
+    # assert frames.device == torch.device("cpu")
+    # assert batch_size % num_workers == 0
+    # n_samples = len(frames)
+    # rewards = torch.zeros(n_samples, device=torch.device("cpu"))
+    # model = model.eval()
+    # with torch.no_grad():
+    #     for i in range(0, n_samples, batch_size):
+    #         frames_batch = frames[i : i + batch_size]
+    #         rewards_batch = dist_worker_compute_reward(
+    #             rank=0,
+    #             reward_model=model,
+    #             render_dim=frames_batch.shape[1:],
+    #             batch_size=batch_size // num_workers,
+    #             num_workers=num_workers,
+    #             frames=frames_batch,
+    #             worker_frames_tensor=worker_frames_tensor,
+    #         )
+    #         rewards_batch = rewards_batch.cpu()
+    #         rewards[i : i + batch_size] = rewards_batch 
+    # return rewards
     assert frames.device == torch.device("cpu")
     assert batch_size % num_workers == 0
     n_samples = len(frames)
-    rewards = torch.zeros(n_samples, device=torch.device("cpu"))
+    rewards = torch.zeros(n_samples, device=model.target.device)
     model = model.eval()
     with torch.no_grad():
         for i in range(0, n_samples, batch_size):
@@ -156,9 +178,8 @@ def compute_rewards(
                 frames=frames_batch,
                 worker_frames_tensor=worker_frames_tensor,
             )
-            rewards_batch = rewards_batch.cpu()
-            rewards[i : i + batch_size] = rewards_batch 
-    return rewards
+            rewards[i : i + batch_size] = rewards_batch
+    return rewards.cpu()
 
 
 @overload
@@ -204,6 +225,7 @@ def dist_worker_compute_reward(
         scatter_list = []
 
     worker_frames = worker_frames_tensor if worker_frames_tensor is not None else torch.zeros((batch_size, *render_dim), dtype=torch.uint8).cuda(rank)
+    
     dist.scatter(worker_frames, scatter_list=scatter_list, src=0)
     with torch.no_grad():
         embeddings = reward_model.embed_module(worker_frames)
@@ -217,3 +239,4 @@ def dist_worker_compute_reward(
 
     if rank == 0:
         return torch.cat(recv_rewards, dim=0).cuda(rank)
+

@@ -11,6 +11,8 @@ from pydantic import BaseModel, computed_field, field_validator, model_validator
 
 from vlmrm import util
 from vlmrm.envs.base import RENDER_DIM
+from datetime import datetime
+
 
 
 class Config(BaseModel):
@@ -24,8 +26,8 @@ class Config(BaseModel):
     logging: LoggingConfig
 
     # Auto-injected properties
-    run_hash: str
-    commit_hash: str
+    # run_hash: str
+    # commit_hash: str
 
     def save(self) -> None:
         with open(self.dump_path, "w") as f:
@@ -57,7 +59,8 @@ class Config(BaseModel):
     @property
     def run_name(self) -> str:
         reward_str = "CLIP" if self.is_clip_rewarded else "GT"
-        return f"{self.env_name[:-3]}_{reward_str}_{self.run_hash}"
+        current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
+        return f"{self.env_name[:-3]}_{reward_str}_{current_time}"#_{self.run_hash}"
 
     @computed_field
     @property
@@ -74,14 +77,14 @@ class Config(BaseModel):
     def tb_dir(self) -> pathlib.Path:
         return self.run_path / "tensorboard"
 
-    @model_validator(mode="before")
-    def configure_properties(cls, data: Any) -> Any:
-        assert isinstance(data, dict)
-        data["run_hash"] = util.get_run_hash()
-        data["commit_hash"] = util.get_git_commit_hash()
-        if "base_path" not in data:
-            data["base_path"] = pathlib.Path.cwd() / "runs/training"
-        return data
+    # @model_validator(mode="before")
+    # def configure_properties(cls, data: Any) -> Any:
+    #     assert isinstance(data, dict)
+    #     data["run_hash"] = util.get_run_hash()
+    #     data["commit_hash"] = util.get_git_commit_hash()
+    #     if "base_path" not in data:
+    #         data["base_path"] = pathlib.Path.cwd() / "runs/training"
+    #     return data
 
     @model_validator(mode="after")
     def check_model(self) -> "Config":

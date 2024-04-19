@@ -11,7 +11,7 @@ import torch
 import torch.distributed as dist
 import yaml
 from loguru import logger
-from stable_baselines3 import SAC
+from stable_baselines3 import SAC, DQN
 from stable_baselines3.common.callbacks import CallbackList
 
 import vlmrm.contrib.sb3.signal_handler as signal_handler
@@ -100,14 +100,22 @@ def primary_worker(
         rl_algorithm_class = get_clip_rewarded_rl_algorithm_class(config.env_name)
         algo = rl_algorithm_class(env=vec_env, config=config)
     else:
-        algo = SAC(
+        if config.env_name == "CartPole-v1":
+            algo = DQN(
             config.rl.policy_name,
             vec_env,
             tensorboard_log=str(config.tb_dir),
             seed=config.seed,
             device="cuda:0",
-        )
-
+            )
+        else:
+            algo = SAC(
+                config.rl.policy_name,
+                vec_env,
+                tensorboard_log=str(config.tb_dir),
+                seed=config.seed,
+                device="cuda:0",
+            )
     signal_handler.model = algo
     signal_handler.checkpoint_dir = str(config.checkpoints_path)
 

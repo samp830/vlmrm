@@ -66,6 +66,7 @@ def primary_worker(
     else:
         make_env_kwargs["max_episode_steps"] = config.rl.episode_length
         env_name = config.env_name
+        # env_name = get_clip_rewarded_env_name(config.env_name)
     make_env_fn = get_make_env(env_name, **make_env_kwargs)
 
     logger.info("Creating environment instance")

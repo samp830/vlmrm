@@ -157,6 +157,8 @@ class CLIPRewardConfig(BaseModel):
     name: Literal["clip"]
     pretrained_model: str
     reward_func: Literal["goal_baseline_reg", "cosine", "l2"] 
+    sparse: bool = False
+    threshold: float = 0.5
     batch_size: int
     alpha: float
     target_prompts: List[str]

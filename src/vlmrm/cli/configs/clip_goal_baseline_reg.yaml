@@ -12,6 +12,9 @@ reward:
     # cosine: cosine similarity between target and state embeddings
     # l2: inverse of l2 distance between target and state embeddings 
   reward_func: goal_baseline_reg 
+  # Whether or not the reward is binary: 0 if <= threshold, 1 otherwise
+  sparse: True
+  threshold: 0.5
   # CLIP batch size per synchronous inference step.
   # Batch size must be divisible by n_workers (GPU count)
   # so that it can be shared among workers, and must be a divisor

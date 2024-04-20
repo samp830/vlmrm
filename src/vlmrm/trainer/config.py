@@ -60,10 +60,10 @@ class Config(BaseModel):
     def run_name(self) -> str:
         reward_str = "CLIP" if self.is_clip_rewarded else "GT"
         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        if self.is_clip_rewarded:
+        try:
             reward_func = self.reward.reward_func
             return f"{self.env_name[:-3]}_{reward_str}_{reward_func}_{current_time}"#_{self.run_hash}"
-        else:
+        except:
             return f"{self.env_name[:-3]}_{reward_str}_{current_time}"
 
     @computed_field
@@ -169,6 +169,7 @@ class CLIPRewardConfig(BaseModel):
     cache_dir: str
     camera_config: Optional[Dict[str, Any]] = None
     textured: bool = True
+    hf_dict: Dict[str, Any]= {"google":{"embed_dim":768}}
 
     @computed_field
     @property
@@ -178,7 +179,13 @@ class CLIPRewardConfig(BaseModel):
         return self._pretrained_config_dict
 
     def get_pretrained_config_dict(self):
-        return get_clip_model_config(self.pretrained_model.split("/")[0])
+        # return 
+        model_config = get_clip_model_config(self.pretrained_model.split("/")[0])
+        if not model_config:
+            return self.hf_dict[self.pretrained_model.split("/")[0]]
+        else:
+            return model_config
+    
 
     @computed_field
     @property
@@ -194,12 +201,12 @@ class CLIPRewardConfig(BaseModel):
                 f"({v=}) is not a valid model name. "
                 "It must be in the form of `name/tag`."
             )
-        tags = open_clip.list_pretrained_tags_by_model(name)
-        if tag not in tags:
-            raise ValueError(
-                f"({v=}) is not a valid model name. "
-                f"Available tags for {name} are {tags}."
-            )
+        # tags = open_clip.list_pretrained_tags_by_model(name)
+        # if tag not in tags:
+        #     raise ValueError(
+        #         f"({v=}) is not a valid model name. "
+        #         f"Available tags for {name} are {tags}."
+        #     )
         return v
 
 

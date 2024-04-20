@@ -1,5 +1,5 @@
 env_name: CartPole-v1 # RL environment name
-base_path: /data/sparajuli/training # Base path to save logs and checkpoints
+base_path: /data/jiahuic/vlmrm_logs # Base path to save logs and checkpoints
 seed: 42 # Seed for reproducibility
 description: Cartpole training using CLIP reward
 tags: # Wandb tags
@@ -21,7 +21,7 @@ reward:
   # Path to pre-saved model weights. When executing multiple runs,
   # mount a volume to this path to avoid downloading the model
   # weights multiple times.
-  cache_dir: /data/sparajuli/.cache
+  cache_dir: /data/jiahuic/.cache
 rl:
   policy_name: MlpPolicy
   n_steps: 3000000 # Total number of simulation steps to be collected.

@@ -60,13 +60,13 @@ def primary_worker(
         if is_3d_env(config.env_name)
         else {}
     )
-    if config.is_clip_rewarded:
-        make_env_kwargs["episode_length"] = config.rl.episode_length
-        env_name = get_clip_rewarded_env_name(config.env_name)
-    else:
-        make_env_kwargs["max_episode_steps"] = config.rl.episode_length
-        env_name = config.env_name
-        # env_name = get_clip_rewarded_env_name(config.env_name)
+    # if config.is_clip_rewarded:
+    make_env_kwargs["episode_length"] = config.rl.episode_length
+    env_name = get_clip_rewarded_env_name(config.env_name)
+    # else:
+    #     make_env_kwargs["max_episode_steps"] = config.rl.episode_length
+    #     env_name = config.env_name
+    #     # env_name = get_clip_rewarded_env_name(config.env_name)
     make_env_fn = get_make_env(env_name, **make_env_kwargs)
 
     logger.info("Creating environment instance")
@@ -81,7 +81,7 @@ def primary_worker(
 
     run = wandb.init(
         config=config_dump,
-        project="vlmrm",
+        project="vlmrm-baseline",
         tags=config.tags,
         notes=config.description,
         name=config.run_name, # this is constructed based on configs in config.py

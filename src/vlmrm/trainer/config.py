@@ -60,10 +60,10 @@ class Config(BaseModel):
     def run_name(self) -> str:
         reward_str = "CLIP" if self.is_clip_rewarded else "GT"
         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
-        try:
+        if self.is_clip_rewarded:
             reward_func = self.reward.reward_func
             return f"{self.env_name[:-3]}_{reward_str}_{reward_func}_{current_time}"#_{self.run_hash}"
-        except:
+        else:
             return f"{self.env_name[:-3]}_{reward_str}_{current_time}"
 
     @computed_field

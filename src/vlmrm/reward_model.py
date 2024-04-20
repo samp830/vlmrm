@@ -46,6 +46,8 @@ class CLIPReward(nn.Module):
         *,
         model: CLIPEmbed,
         reward_func: str,
+        sparse: bool,
+        threshold: float,
         alpha: float,
         target_prompts: torch.Tensor,
         baseline_prompts: torch.Tensor,
@@ -71,6 +73,9 @@ class CLIPReward(nn.Module):
         super().__init__()
         self.embed_module = model
         self.reward_func = reward_func
+        self.sparse = sparse
+        if self.sparse:
+            self.threshold = threshold
         target = self.embed_prompts(target_prompts).mean(dim=0, keepdim=True)
         baseline = self.embed_prompts(baseline_prompts).mean(dim=0, keepdim=True)
         direction = target - baseline
@@ -104,7 +109,11 @@ class CLIPReward(nn.Module):
             y = nn.functional.cosine_similarity(x, self.target)
         elif self.reward_func == "l2":
             y = 1 / nn.functional.pairwise_distance(x, self.target)
-        return y
+       
+        if not self.sparse:
+            return y
+        else:
+            return torch.where(y > self.threshold, 1.0, 0.0)
 
     @staticmethod
     def tokenize_prompts(x: List[str]) -> torch.Tensor:
@@ -156,6 +165,8 @@ class SigLipReward(nn.Module):
         model: AutoModel,
         processor: AutoProcessor,
         reward_func: str,
+        sparse: bool,
+        threshold: float,
         alpha: float,
         target_prompts: torch.Tensor,
         baseline_prompts: torch.Tensor,
@@ -182,6 +193,8 @@ class SigLipReward(nn.Module):
         self.embed_module = model
         self.processor = processor
         self.reward_func = reward_func
+        if self.sparse:
+            self.threshold = threshold
         target = self.embed_prompts(target_prompts).mean(dim=0, keepdim=True)
         baseline = self.embed_prompts(baseline_prompts).mean(dim=0, keepdim=True)
         direction = target - baseline
@@ -219,7 +232,11 @@ class SigLipReward(nn.Module):
             y = nn.functional.cosine_similarity(x, self.target)
         elif self.reward_func == "l2":
             y = 1 / nn.functional.pairwise_distance(x, self.target)
-        return y
+        
+        if not self.sparse:
+            return y
+        else:
+            return torch.where(y > self.threshold, 1.0, 0.0)
 
     def tokenize_prompts(self, x: List[str]) -> torch.Tensor:
         """Tokenize a list of prompts."""
@@ -259,7 +276,15 @@ def load_reward_model(
     if "siglip" in pretrained.lower():
         model = AutoModel.from_pretrained("google/siglip-base-patch16-224")
         processor = AutoProcessor.from_pretrained("google/siglip-base-patch16-224")
-        model = SigLipReward(model=model, processor=processor, reward_func=reward_func, alpha=alpha, target_prompts=target_prompts, baseline_prompts=baseline_prompts)
+        model = SigLipReward(model=model, 
+                             processor=processor, 
+                             reward_func=reward_func, 
+                             sparse=sparse,
+                             threshold=threshold,
+                             alpha=alpha, 
+                             target_prompts=target_prompts, 
+                             baseline_prompts=baseline_prompts
+                            )
         return model.eval()
 
     else:
@@ -286,6 +311,8 @@ def load_reward_model_from_config(config: CLIPRewardConfig) -> Union[CLIPReward,
     return load_reward_model(
         model_name=config.pretrained_model,
         reward_func=config.reward_func,
+        sparse=config.sparse,
+        threshold=config.threshold,
         target_prompts=config.target_prompts,
         baseline_prompts=config.baseline_prompts,
         alpha=config.alpha,
@@ -402,7 +429,7 @@ def dist_worker_compute_reward(
             # print(embeddings, "embeddings")
             # print(type(embeddings))
             # print(embeddings.shape)
-            rewards = reward_model(embeddings)
+        rewards = reward_model(embeddings)
 
     def zero_t():
         return torch.zeros_like(rewards)

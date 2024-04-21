@@ -1,7 +1,7 @@
 env_name: CartPole-v1 # RL environment name
 base_path: /data/jiahuic/vlmrm_logs # Base path to save logs and checkpoints
 seed: 42 # Seed for reproducibility
-description: Cartpole training using CLIP reward
+description: Cartpole training using CLIP goal-baseline regularized reward, 3 million steps
 tags: # Wandb tags
   - clip
 reward:
@@ -13,7 +13,7 @@ reward:
     # l2: inverse of l2 distance between target and state embeddings 
   reward_func: goal_baseline_reg 
   # Whether or not the reward is binary: 0 if <= threshold, 1 otherwise
-  sparse: True
+  sparse: False 
   threshold: 0.5
   # CLIP batch size per synchronous inference step.
   # Batch size must be divisible by n_workers (GPU count)
@@ -32,16 +32,16 @@ reward:
   cache_dir: /data/jiahuic/.cache
 rl:
   policy_name: MlpPolicy
-  n_steps: 100000 # Total number of simulation steps to be collected.
-  n_envs_per_worker: 2 # Number of environments per worker (GPU)
+  n_steps: 3000000 # Total number of simulation steps to be collected.
+  n_envs_per_worker: 4 # Number of environments per worker (GPU)
   episode_length: 200 # Desired episode length
-  learning_starts: 100 # Number of env steps to collect before training
+  learning_starts: 75000 # Number of env steps to collect before training
   train_freq: 200 # Number of collected env steps between training iterations
   batch_size: 64 # SAC buffer sample size per gradient step
-  gradient_steps: 1 # Number of samples to collect from the buffer per training step
+  gradient_steps: 128 # Number of samples to collect from the buffer per training step
   tau: 0.005 # SAC target network update rate
   gamma: 0.99 # SAC discount factor
-  learning_rate: 3e-4 # SAC optimizer learning rate
+  learning_rate: 2.3e-3 # SAC optimizer learning rate
 logging:
   checkpoint_freq: 800 # Number of env steps between checkpoints
   video_freq: 800 # Number of env steps between videos

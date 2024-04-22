@@ -131,6 +131,8 @@ def primary_worker(
     )
     callback = CallbackList([video_callback, wandb_callback])
 
+    # callback = CallbackList([video_callback])
+
     logger.info("Training RL algorithm")
     model = algo.learn(
         total_timesteps=config.rl.n_steps,

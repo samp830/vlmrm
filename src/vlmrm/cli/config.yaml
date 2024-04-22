@@ -6,13 +6,15 @@ tags: # Wandb tags
   - clip
 reward:
   name: clip
-  pretrained_model: ViT-B-32/laion2b_s34b_b79k # CLIP model name
+  # pretrained_model: ViT-B-32/laion2b_s34b_b79k # CLIP model name
+  pretrained_model: google/siglip-base-patch16-224k # CLIP model name
   # CLIP batch size per synchronous inference step.
   # Batch size must be divisible by n_workers (GPU count)
   # so that it can be shared among workers, and must be a divisor
   # of n_envs * episode_length so that all batches can be of the
   # same size (no support for variable batch size as of now.)
-  reward_func: goal_baseline_reg
+  # reward_func: goal_baseline_reg
+  reward_func: contrastive
   batch_size: 1600
   alpha: 0.5 # Alpha value of Baseline CLIP (CO-RELATE)
   target_prompts: # Description of the goal state
@@ -25,16 +27,16 @@ reward:
   cache_dir: /data/sparajuli/.cache
 rl:
   policy_name: MlpPolicy
-  n_steps: 500000 # Total number of simulation steps to be collected.
+  n_steps: 3000000 # Total number of simulation steps to be collected.
   n_envs_per_worker: 2 # Number of environments per worker (GPU)
   episode_length: 200 # Desired episode length
-  learning_starts: 10000 # Number of env steps to collect before training
+  learning_starts: 75000 # Number of env steps to collect before training
   train_freq: 200 # Number of collected env steps between training iterations
   batch_size: 128 # SAC buffer sample size per gradient step
-  gradient_steps: 10 # Number of samples to collect from the buffer per training step
+  gradient_steps: 200 # Number of samples to collect from the buffer per training step
   tau: 1.0 # SAC target network update rate
   gamma: 0.99 # SAC discount factor
-  learning_rate: 2.5e-4 # SAC optimizer learning rate
+  learning_rate: 2.3e-3 # SAC optimizer learning rate
 logging:
   checkpoint_freq: 800 # Number of env steps between checkpoints
   video_freq: 800 # Number of env steps between videos

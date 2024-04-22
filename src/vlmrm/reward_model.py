@@ -103,6 +103,17 @@ class CLIPReward(nn.Module):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         # x is the output of CLIPEmbed (image embedding)
         x = x / torch.norm(x, dim=-1, keepdim=True) 
+        if self.reward_func == "contrastive":
+            sim_s_g = nn.functional.cosine_similarity(x, self.target)
+            sim_s_b = nn.functional.cosine_similarity(x, self.baseline)
+            P_s_g = torch.exp(sim_s_g) / (torch.exp(sim_s_g) + torch.exp(sim_s_b))
+            P_s_b = torch.exp(sim_s_b) / (torch.exp(sim_s_g) + torch.exp(sim_s_b))
+            P_s = (torch.exp(sim_s_g) + torch.exp(sim_s_b)) / (torch.exp(sim_s_g) + torch.exp(sim_s_b) + 1)
+            P_g = torch.tensor(0.5)
+            P_b = torch.tensor(0.5)
+            NPMI_s_g = (torch.log(P_s_g / (P_s * P_g)) / -torch.log(P_s_g))
+            NPMI_s_b = (torch.log(P_s_b / (P_s * P_b)) / -torch.log(P_s_b))
+            y = NPMI_s_g - self.alpha * NPMI_s_b
         if self.reward_func == "goal_baseline_reg":
             y = 1 - (torch.norm((x - self.target) @ self.projection, dim=-1) ** 2) / 2
         elif self.reward_func == "cosine":
@@ -193,8 +204,11 @@ class SigLipReward(nn.Module):
         self.embed_module = model
         self.processor = processor
         self.reward_func = reward_func
+        self.sparse = sparse
         if self.sparse:
             self.threshold = threshold
+        self.target_prompts = target_prompts
+        self.baseline_prompts = baseline_prompts
         target = self.embed_prompts(target_prompts).mean(dim=0, keepdim=True)
         baseline = self.embed_prompts(baseline_prompts).mean(dim=0, keepdim=True)
         direction = target - baseline
@@ -225,7 +239,23 @@ class SigLipReward(nn.Module):
         #     # print(x)
         #     print(type(x), "~~~~~~~~~~~~~~~~~~~~~~~~~")
         #     x = self.embed_module.get_image_features(**x) # equivalent of a CLIPEmbed (image embedding)
-        x = x / torch.norm(x, dim=-1, keepdim=True) 
+        x = x / torch.norm(x, dim=-1, keepdim=True)
+        if self.reward_func == "contrastive":
+            # print(x.shape)
+            sim_s_g = nn.functional.cosine_similarity(x, self.target)
+            sim_s_b = nn.functional.cosine_similarity(x, self.baseline)
+            # Estimate probabilities
+            P_s_g = torch.exp(sim_s_g) / (torch.exp(sim_s_g) + torch.exp(sim_s_b))
+            P_s_b = torch.exp(sim_s_b) / (torch.exp(sim_s_g) + torch.exp(sim_s_b))
+            P_s = (torch.exp(sim_s_g) + torch.exp(sim_s_b)) / (torch.exp(sim_s_g) + torch.exp(sim_s_b) + 1)
+            P_g = torch.tensor(0.5)
+            P_b = torch.tensor(0.5)
+            # print(sim_s_b.shape, sim_s_g.shape)
+            # Compute NPMI
+            NPMI_s_g = (torch.log(P_s_g / (P_s * P_g)) / -torch.log(P_s_g))
+            NPMI_s_b = (torch.log(P_s_b / (P_s * P_b)) / -torch.log(P_s_b))
+            # Compute regularized reward
+            y = NPMI_s_g - self.alpha * NPMI_s_b
         if self.reward_func == "goal_baseline_reg":
             y = 1 - (torch.norm((x - self.target) @ self.projection, dim=-1) ** 2) / 2
         elif self.reward_func == "cosine":
@@ -274,6 +304,7 @@ def load_reward_model(
     model_name_prefix, pretrained = model_name.split("/")
 
     if "siglip" in pretrained.lower():
+        print("SIGLIP, ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~````")
         model = AutoModel.from_pretrained("google/siglip-base-patch16-224")
         processor = AutoProcessor.from_pretrained("google/siglip-base-patch16-224")
         model = SigLipReward(model=model, 
@@ -335,6 +366,8 @@ def compute_rewards(
     with torch.no_grad():
         for i in range(0, n_samples, batch_size):
             frames_batch = frames[i : i + batch_size]
+            # print(frames_batch.shape, "%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%")
+            # import pdb; pdb.set_trace()
             rewards_batch = dist_worker_compute_reward(
                 rank=0,
                 reward_model=model,

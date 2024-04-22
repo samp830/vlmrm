@@ -8,8 +8,9 @@ import torch.nn as nn
 from vlmrm.contrib.open_clip.transform import image_transform
 from vlmrm.trainer.config import CLIPRewardConfig
 from PIL import Image
+import numpy as np
 
-from transformers import AutoModel, AutoProcessor, BatchFeature
+from transformers import AutoModel, FlavaModel, AutoProcessor, BatchFeature
 
 
 class CLIPEmbed(nn.Module):
@@ -290,21 +291,194 @@ class SigLipReward(nn.Module):
                 x = self.embed_module.get_image_features(y["pixel_values"].cuda())
         return x
 
+class FLAVAReward(nn.Module):
+    def __init__(
+        self,
+        *,
+        model: AutoModel,
+        processor: AutoProcessor,
+        reward_func: str,
+        sparse: bool,
+        threshold: float,
+        alpha: float,
+        multi_prompt: bool,
+        target_prompts: torch.Tensor,
+        baseline_prompts: torch.Tensor,
+    ) -> None:
+        """CLIP Reward function that modifies the CLIP vector space by
+        projecting all vectors onto the line spanned by the prompt and
+        a baseline prompt. The alpha parameter controls the degree of
+        projection. A value of 0.0 means that the reward function is
+        equivalent to the CLIP reward function. A value of 1.0 means
+        that the vector space is completely projected onto the line
+        and becomes a 1D space. Any value in between is a linear
+        interpolation between the two.
+
+        Args:
+            model (str): CLIP model.
+            device (str): Device to use.
+            alpha (float, optional): Coeefficient of projection.
+            target_prompts (torch.Tensor): Tokenized prompts describing
+                the target state.
+            baseline_prompts (torch.Tensor): Tokenized prompts describing
+                the baseline state.
+        """
+        super().__init__()
+        self.embed_module = model
+        self.processor = processor
+        self.reward_func = reward_func
+        self.sparse = sparse
+        if self.sparse:
+            self.threshold = threshold
+        self.multi_prompt = multi_prompt
+        self.target_prompts = target_prompts
+        self.baseline_prompts = baseline_prompts
+        if self.multi_prompt:
+            target = self.embed_prompts(target_prompts)
+            baseline = self.embed_prompts(baseline_prompts)
+        else:
+            target = self.embed_prompts(target_prompts).mean(dim=0, keepdim=True)
+            baseline = self.embed_prompts(baseline_prompts).mean(dim=0, keepdim=True)
+        direction = target - baseline
+        # Register them as buffers so they are automatically moved around.
+        self.register_buffer("target", target)
+        self.register_buffer("baseline", baseline)
+        self.register_buffer("direction", direction)
+
+
+        self.alpha = alpha
+        projection = self.compute_projection(alpha)
+        self.register_buffer("projection", projection)
+    
+    def compute_projection(self, alpha: float) -> torch.Tensor:
+        projection = self.direction.T @ self.direction / torch.norm(self.direction) ** 2
+        identity = torch.diag(torch.ones(projection.shape[0])).to(projection.device)
+        projection = alpha * projection + (1 - alpha) * identity
+        return projection
+
+    def update_alpha(self, alpha: float) -> None:
+        self.alpha = alpha
+        self.projection = self.compute_projection(alpha)
+
+    @torch.inference_mode()
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        # x = self.processor.image_processor(x)
+        # with torch.no_grad():
+        #     # print(x)
+        #     print(type(x), "~~~~~~~~~~~~~~~~~~~~~~~~~")
+        #     x = self.embed_module.get_image_features(**x) # equivalent of a CLIPEmbed (image embedding)
+        x = x / torch.norm(x, dim=-1, keepdim=True)
+        if self.reward_func == "contrastive":
+            if self.multi_prompt:
+                sim_s_g = torch.stack([nn.functional.cosine_similarity(x, target_embedding) for target_embedding in self.target])
+                sim_s_b = torch.stack([nn.functional.cosine_similarity(x, baseline_embedding) for baseline_embedding in self.baseline])
+            else:
+                sim_s_g = nn.functional.cosine_similarity(x, self.target)
+                sim_s_b = nn.functional.cosine_similarity(x, self.baseline)
+
+
+            if self.multi_prompt:
+                # Compute probabilities for each target and baseline pair
+                P_s_g_list = []
+                P_s_b_list = []
+                P_s_list = []
+                for sim_g, sim_b in zip(sim_s_g, sim_s_b):
+                    P_s_g = torch.exp(sim_g) / (torch.exp(sim_g) + torch.exp(sim_b))
+                    P_s_b = torch.exp(sim_b) / (torch.exp(sim_g) + torch.exp(sim_b))
+                    P_s = (torch.exp(sim_g) + torch.exp(sim_b)) / (torch.exp(sim_g) + torch.exp(sim_b) + 1)
+                    P_s_g_list.append(P_s_g)
+                    P_s_b_list.append(P_s_b)
+                    P_s_list.append(P_s)
+                
+                # Stack the probabilities along a new dimension
+                P_s_g = torch.stack(P_s_g_list)
+                P_s_b = torch.stack(P_s_b_list)
+                P_s = torch.stack(P_s_list)
+            else:
+                # Compute probabilities for the single target and baseline
+                P_s_g = torch.exp(sim_s_g) / (torch.exp(sim_s_g) + torch.exp(sim_s_b))
+                P_s_b = torch.exp(sim_s_b) / (torch.exp(sim_s_g) + torch.exp(sim_s_b))
+                P_s = (torch.exp(sim_s_g) + torch.exp(sim_s_b)) / (torch.exp(sim_s_g) + torch.exp(sim_s_b) + 1)
+
+            P_g = torch.tensor(0.5)
+            P_b = torch.tensor(0.5)
+
+            # Compute NPMI using log probabilities directly for stability
+            if self.multi_prompt:
+                NPMI_s_g = torch.log(P_s_g / (P_s * P_g)) / -torch.log(P_s_g)
+                NPMI_s_b = torch.log(P_s_b / (P_s * P_b)) / -torch.log(P_s_b)
+                
+                # # Take the mean NPMI across the multiple prompts
+                NPMI_s_g = NPMI_s_g.mean(dim=0)
+                NPMI_s_b = NPMI_s_b.mean(dim=0)
+            else:
+                NPMI_s_g = torch.log(P_s_g / (P_s * P_g)) / -torch.log(P_s_g)
+                NPMI_s_b = torch.log(P_s_b / (P_s * P_b)) / -torch.log(P_s_b)
+
+            y = NPMI_s_g - self.alpha * NPMI_s_b
+            print(y)
+            print(y.shape, "y")
+            # P_s_g = torch.exp(sim_s_g) / (torch.exp(sim_s_g) + torch.exp(sim_s_b))
+            # P_s_b = torch.exp(sim_s_b) / (torch.exp(sim_s_g) + torch.exp(sim_s_b))
+            # P_s = (torch.exp(sim_s_g) + torch.exp(sim_s_b)) / (torch.exp(sim_s_g) + torch.exp(sim_s_b) + 1)
+            # P_g = torch.tensor(0.5)
+            # P_b = torch.tensor(0.5)
+            # # Compute NPMI
+            # NPMI_s_g = (torch.log(P_s_g / (P_s * P_g)) / -torch.log(P_s_g))
+            # NPMI_s_b = (torch.log(P_s_b / (P_s * P_b)) / -torch.log(P_s_b))
+            # # Compute regularized reward
+            # y = NPMI_s_g - self.alpha * NPMI_s_b
+        if self.reward_func == "goal_baseline_reg":
+            y = 1 - (torch.norm((x - self.target) @ self.projection, dim=-1) ** 2) / 2
+        elif self.reward_func == "cosine":
+            y = nn.functional.cosine_similarity(x, self.target)
+        elif self.reward_func == "l2":
+            y = 1 / nn.functional.pairwise_distance(x, self.target)
+        
+        if not self.sparse:
+            return y
+        else:
+            return torch.where(y > self.threshold, 1.0, 0.0)
+
+    def tokenize_prompts(self, x: List[str]) -> torch.Tensor:
+        """Tokenize a list of prompts."""
+        return self.processor.tokenizer(x, return_tensors="pt", padding=True, max_length=77)["input_ids"]
+        # return self.processor.tokenizer(x, padding="max_length", return_tensors="pt")["input_ids"]
+
+    def embed_prompts(self, x) -> torch.Tensor:
+        """Embed a list of prompts."""
+        inputs = self.processor.tokenizer(x, return_tensors="pt", padding=True, max_length=77)["input_ids"]
+        with torch.no_grad():
+            x = self.embed_module.get_text_features(inputs)[:,0]
+        x = x / x.norm(dim=-1, keepdim=True)
+        return x
+
+    def embed_images(self, x, rank=None):
+        x = self.processor.feature_extractor(x)
+        # y = BatchFeature(data=dict(**x), tensor_type="pt")
+        with torch.no_grad():
+            if rank:
+                x = self.embed_module.get_image_features(torch.tensor(np.array(x["pixel_values"])).cuda(rank))[:,0]
+            else:
+                x = self.embed_module.get_image_features(torch.tensor(np.array(x["pixel_values"])).cuda())[:,0]
+        return x
+
 
 def load_reward_model(
     model_name, 
     reward_func, 
     sparse,
     threshold,
+    multi_prompt,
     target_prompts, 
     baseline_prompts, 
     alpha, 
     cache_dir: Optional[str] = None
 ):
     model_name_prefix, pretrained = model_name.split("/")
+    print(model_name_prefix, pretrained)
 
     if "siglip" in pretrained.lower():
-        print("SIGLIP, ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~````")
         model = AutoModel.from_pretrained("google/siglip-base-patch16-224")
         processor = AutoProcessor.from_pretrained("google/siglip-base-patch16-224")
         model = SigLipReward(model=model, 
@@ -316,6 +490,20 @@ def load_reward_model(
                              target_prompts=target_prompts, 
                              baseline_prompts=baseline_prompts
                             )
+        return model.eval()
+
+    elif "flava" in pretrained.lower():
+        model = FlavaModel.from_pretrained("facebook/flava-full")
+        processor = AutoProcessor.from_pretrained("facebook/flava-full")
+        model = FLAVAReward(model=model, 
+                             processor=processor, 
+                             reward_func=reward_func, 
+                             sparse=sparse,
+                             threshold=threshold,
+                             alpha=alpha, 
+                             multi_prompt=multi_prompt, 
+                             target_prompts=target_prompts, 
+                             baseline_prompts=baseline_prompts)
         return model.eval()
 
     else:
@@ -344,6 +532,7 @@ def load_reward_model_from_config(config: CLIPRewardConfig) -> Union[CLIPReward,
         reward_func=config.reward_func,
         sparse=config.sparse,
         threshold=config.threshold,
+        multi_prompt=config.multi_prompt,
         target_prompts=config.target_prompts,
         baseline_prompts=config.baseline_prompts,
         alpha=config.alpha,
@@ -352,7 +541,7 @@ def load_reward_model_from_config(config: CLIPRewardConfig) -> Union[CLIPReward,
 
 
 def compute_rewards(
-    model: Union[CLIPEmbed, SigLipReward],
+    model: Union[CLIPEmbed, SigLipReward, FLAVAReward],
     frames: torch.Tensor,
     batch_size: int,
     num_workers: int,

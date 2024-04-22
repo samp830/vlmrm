@@ -7,7 +7,8 @@ tags: # Wandb tags
 reward:
   name: clip
   # pretrained_model: ViT-B-32/laion2b_s34b_b79k # CLIP model name
-  pretrained_model: google/siglip-base-patch16-224k # CLIP model name
+  # pretrained_model: google/siglip-base-patch16-224k # CLIP model name
+  pretrained_model: facebook/flava-full # CLIP model name
   # CLIP batch size per synchronous inference step.
   # Batch size must be divisible by n_workers (GPU count)
   # so that it can be shared among workers, and must be a divisor
@@ -15,12 +16,24 @@ reward:
   # same size (no support for variable batch size as of now.)
   # reward_func: goal_baseline_reg
   reward_func: contrastive
+  multi_prompt: True
   batch_size: 1600
   alpha: 0.5 # Alpha value of Baseline CLIP (CO-RELATE)
   target_prompts: # Description of the goal state
     - pole vertically upright on top of the cart
+    - pole standing straight up on the cart
+    - pole in a vertical position atop the cart
+    - upright pole mounted on the cart
+    - pole perpendicularly aligned on the cart
+    - straight pole on top of the cart
+
   baseline_prompts: # Description of the environment
     - pole and cart
+    - pole mounted on a block cart
+    - standalone pole with a compact cart
+    - simple cart with a pole
+    - single pole connected to cart
+    - Cart with an attached pole
   # Path to pre-saved model weights. When executing multiple runs,
   # mount a volume to this path to avoid downloading the model
   # weights multiple times.

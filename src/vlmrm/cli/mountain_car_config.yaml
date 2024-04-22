@@ -7,8 +7,8 @@ tags: # Wandb tags
 reward:
   name: clip
   # pretrained_model: ViT-B-32/laion2b_s34b_b79k # CLIP model name
-  pretrained_model: google/siglip-base-patch16-224k # CLIP model name
-
+  #pretrained_model: google/siglip-base-patch16-224k # CLIP model name
+  pretrained_model: facebook/flava-full
   # CLIP batch size per synchronous inference step.
   # Batch size must be divisible by n_workers (GPU count)
   # so that it can be shared among workers, and must be a divisor

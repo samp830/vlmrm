@@ -61,8 +61,9 @@ class Config(BaseModel):
         reward_str = "CLIP" if self.is_clip_rewarded else "GT"
         current_time = datetime.now().strftime("%Y%m%d_%H%M%S")
         if self.is_clip_rewarded:
+            model_name = self.reward.pretrained_model.split("/")[1]
             reward_func = self.reward.reward_func
-            return f"{self.env_name[:-3]}_{reward_str}_{reward_func}_{current_time}"#_{self.run_hash}"
+            return f"{self.env_name[:-3]}_{model_name}_{reward_func}_{current_time}"#_{self.run_hash}"
         else:
             return f"{self.env_name[:-3]}_{reward_str}_{current_time}"
 
@@ -161,6 +162,7 @@ class CLIPRewardConfig(BaseModel):
     pretrained_model: str
     reward_func: Literal["goal_baseline_reg", "cosine", "l2", "contrastive"] 
     sparse: bool = False
+    multi_prompt: bool = False
     threshold: float = 0.5
     batch_size: int
     alpha: float
@@ -169,7 +171,7 @@ class CLIPRewardConfig(BaseModel):
     cache_dir: str
     camera_config: Optional[Dict[str, Any]] = None
     textured: bool = True
-    hf_dict: Dict[str, Any]= {"google":{"embed_dim":768}}
+    hf_dict: Dict[str, Any]= {"google":{"embed_dim":768}, "facebook":{"embed_dim":768}}
 
     @computed_field
     @property

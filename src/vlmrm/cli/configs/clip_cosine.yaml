@@ -6,7 +6,9 @@ tags: # Wandb tags
   - clip
 reward:
   name: clip
-  pretrained_model: ViT-B-32/laion2b_s34b_b79k # CLIP model name
+  # pretrained_model: ViT-B-32/laion2b_s34b_b79k # CLIP model name
+  pretrained_model: convnext_base/laion400m_s13b_b51k
+  # pretrained_model: RN101/openai
   # Reward function used, given the pretrained_model's embeddings
     # goal_baseline_reg: eq. 3 from VLM RM paper
     # cosine: cosine similarity between target and state embeddings

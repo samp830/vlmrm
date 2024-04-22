@@ -180,6 +180,7 @@ class SigLipReward(nn.Module):
         sparse: bool,
         threshold: float,
         alpha: float,
+        multi_prompt: bool,
         target_prompts: torch.Tensor,
         baseline_prompts: torch.Tensor,
     ) -> None:
@@ -208,6 +209,7 @@ class SigLipReward(nn.Module):
         self.sparse = sparse
         if self.sparse:
             self.threshold = threshold
+        self.multi_prompt = multi_prompt
         self.target_prompts = target_prompts
         self.baseline_prompts = baseline_prompts
         target = self.embed_prompts(target_prompts).mean(dim=0, keepdim=True)
@@ -242,21 +244,67 @@ class SigLipReward(nn.Module):
         #     x = self.embed_module.get_image_features(**x) # equivalent of a CLIPEmbed (image embedding)
         x = x / torch.norm(x, dim=-1, keepdim=True)
         if self.reward_func == "contrastive":
-            # print(x.shape)
-            sim_s_g = nn.functional.cosine_similarity(x, self.target)
-            sim_s_b = nn.functional.cosine_similarity(x, self.baseline)
-            # Estimate probabilities
-            P_s_g = torch.exp(sim_s_g) / (torch.exp(sim_s_g) + torch.exp(sim_s_b))
-            P_s_b = torch.exp(sim_s_b) / (torch.exp(sim_s_g) + torch.exp(sim_s_b))
-            P_s = (torch.exp(sim_s_g) + torch.exp(sim_s_b)) / (torch.exp(sim_s_g) + torch.exp(sim_s_b) + 1)
+            if self.multi_prompt:
+                sim_s_g = torch.stack([nn.functional.cosine_similarity(x, target_embedding) for target_embedding in self.target])
+                sim_s_b = torch.stack([nn.functional.cosine_similarity(x, baseline_embedding) for baseline_embedding in self.baseline])
+            else:
+                sim_s_g = nn.functional.cosine_similarity(x, self.target)
+                sim_s_b = nn.functional.cosine_similarity(x, self.baseline)
+
+
+            if self.multi_prompt:
+                # Compute probabilities for each target and baseline pair
+                P_s_g_list = []
+                P_s_b_list = []
+                P_s_list = []
+                for sim_g, sim_b in zip(sim_s_g, sim_s_b):
+                    P_s_g = torch.exp(sim_g) / (torch.exp(sim_g) + torch.exp(sim_b))
+                    P_s_b = torch.exp(sim_b) / (torch.exp(sim_g) + torch.exp(sim_b))
+                    P_s = (torch.exp(sim_g) + torch.exp(sim_b)) / (torch.exp(sim_g) + torch.exp(sim_b) + 1)
+                    P_s_g_list.append(P_s_g)
+                    P_s_b_list.append(P_s_b)
+                    P_s_list.append(P_s)
+                
+                # Stack the probabilities along a new dimension
+                P_s_g = torch.stack(P_s_g_list)
+                P_s_b = torch.stack(P_s_b_list)
+                P_s = torch.stack(P_s_list)
+            else:
+                # Compute probabilities for the single target and baseline
+                P_s_g = torch.exp(sim_s_g) / (torch.exp(sim_s_g) + torch.exp(sim_s_b))
+                P_s_b = torch.exp(sim_s_b) / (torch.exp(sim_s_g) + torch.exp(sim_s_b))
+                P_s = (torch.exp(sim_s_g) + torch.exp(sim_s_b)) / (torch.exp(sim_s_g) + torch.exp(sim_s_b) + 1)
+
             P_g = torch.tensor(0.5)
             P_b = torch.tensor(0.5)
-            # print(sim_s_b.shape, sim_s_g.shape)
-            # Compute NPMI
-            NPMI_s_g = (torch.log(P_s_g / (P_s * P_g)) / -torch.log(P_s_g))
-            NPMI_s_b = (torch.log(P_s_b / (P_s * P_b)) / -torch.log(P_s_b))
-            # Compute regularized reward
+
+            # Compute NPMI using log probabilities directly for stability
+            if self.multi_prompt:
+                NPMI_s_g = torch.log(P_s_g / (P_s * P_g)) / -torch.log(P_s_g)
+                NPMI_s_b = torch.log(P_s_b / (P_s * P_b)) / -torch.log(P_s_b)
+                
+                # # Take the mean NPMI across the multiple prompts
+                NPMI_s_g = NPMI_s_g.mean(dim=0)
+                NPMI_s_b = NPMI_s_b.mean(dim=0)
+            else:
+                NPMI_s_g = torch.log(P_s_g / (P_s * P_g)) / -torch.log(P_s_g)
+                NPMI_s_b = torch.log(P_s_b / (P_s * P_b)) / -torch.log(P_s_b)
+
             y = NPMI_s_g - self.alpha * NPMI_s_b
+            # sim_s_g = nn.functional.cosine_similarity(x, self.target)
+            # sim_s_b = nn.functional.cosine_similarity(x, self.baseline)
+            # # Estimate probabilities
+            # P_s_g = torch.exp(sim_s_g) / (torch.exp(sim_s_g) + torch.exp(sim_s_b))
+            # P_s_b = torch.exp(sim_s_b) / (torch.exp(sim_s_g) + torch.exp(sim_s_b))
+            # P_s = (torch.exp(sim_s_g) + torch.exp(sim_s_b)) / (torch.exp(sim_s_g) + torch.exp(sim_s_b) + 1)
+            # P_g = torch.tensor(0.5)
+            # P_b = torch.tensor(0.5)
+            # # print(sim_s_b.shape, sim_s_g.shape)
+            # # Compute NPMI
+            # NPMI_s_g = (torch.log(P_s_g / (P_s * P_g)) / -torch.log(P_s_g))
+            # NPMI_s_b = (torch.log(P_s_b / (P_s * P_b)) / -torch.log(P_s_b))
+            # # Compute regularized reward
+            # y = NPMI_s_g - self.alpha * NPMI_s_b
         if self.reward_func == "goal_baseline_reg":
             y = 1 - (torch.norm((x - self.target) @ self.projection, dim=-1) ** 2) / 2
         elif self.reward_func == "cosine":
@@ -416,8 +464,6 @@ class FLAVAReward(nn.Module):
                 NPMI_s_b = torch.log(P_s_b / (P_s * P_b)) / -torch.log(P_s_b)
 
             y = NPMI_s_g - self.alpha * NPMI_s_b
-            print(y)
-            print(y.shape, "y")
             # P_s_g = torch.exp(sim_s_g) / (torch.exp(sim_s_g) + torch.exp(sim_s_b))
             # P_s_b = torch.exp(sim_s_b) / (torch.exp(sim_s_g) + torch.exp(sim_s_b))
             # P_s = (torch.exp(sim_s_g) + torch.exp(sim_s_b)) / (torch.exp(sim_s_g) + torch.exp(sim_s_b) + 1)
@@ -487,6 +533,7 @@ def load_reward_model(
                              sparse=sparse,
                              threshold=threshold,
                              alpha=alpha, 
+                             multi_prompt=multi_prompt, 
                              target_prompts=target_prompts, 
                              baseline_prompts=baseline_prompts
                             )

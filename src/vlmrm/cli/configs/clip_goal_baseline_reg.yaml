@@ -1,14 +1,14 @@
 env_name: CartPole-v1 # RL environment name
-base_path: /data/jiahuic/vlmrm_logs # Base path to save logs and checkpoints
+base_path: /datastor1/jiahuikchen/vlmrm_logs # Base path to save logs and checkpoints
 seed: 42 # Seed for reproducibility
 description: Cartpole training using CLIP goal-baseline regularized reward, 3 million steps
 tags: # Wandb tags
   - clip
 reward:
   name: clip
-    # pretrained_model: ViT-B-32/laion2b_s34b_b79k # CLIP model name
-  pretrained_model: convnext_base/laion400m_s13b_b51k
-  # pretrained_model: RN101/openai
+  # pretrained_model: ViT-B-32/laion2b_s34b_b79k # CLIP model name
+  # pretrained_model: convnext_base/laion400m_s13b_b51k
+  pretrained_model: RN101/openai
   # Reward function used, given the pretrained_model's embeddings
     # goal_baseline_reg: eq. 3 from VLM RM paper
     # cosine: cosine similarity between target and state embeddings
@@ -16,7 +16,7 @@ reward:
   reward_func: goal_baseline_reg 
   # Whether or not the reward is binary: 0 if <= threshold, 1 otherwise
   sparse: False 
-  threshold: 0.5
+  threshold: 1.0 
   # CLIP batch size per synchronous inference step.
   # Batch size must be divisible by n_workers (GPU count)
   # so that it can be shared among workers, and must be a divisor
@@ -31,7 +31,7 @@ reward:
   # Path to pre-saved model weights. When executing multiple runs,
   # mount a volume to this path to avoid downloading the model
   # weights multiple times.
-  cache_dir: /data/jiahuic/.cache
+  cache_dir: /datastor1/jiahuikchen/.cache
 rl:
   policy_name: MlpPolicy
   n_steps: 3000000 # Total number of simulation steps to be collected.

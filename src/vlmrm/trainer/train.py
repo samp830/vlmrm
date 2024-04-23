@@ -97,26 +97,26 @@ def primary_worker(
         wandb.define_metric(metric, step_metric="global_step")
 
     logger.info("Setting up RL algorithm")
-    if config.is_clip_rewarded:
-        rl_algorithm_class = get_clip_rewarded_rl_algorithm_class(config.env_name)
-        algo = rl_algorithm_class(env=vec_env, config=config)
+    # if config.is_clip_rewarded:
+    #     rl_algorithm_class = get_clip_rewarded_rl_algorithm_class(config.env_name)
+    #     algo = rl_algorithm_class(env=vec_env, config=config)
+    # else:
+    if config.env_name == "CartPole-v1":
+        algo = DQN(
+        config.rl.policy_name,
+        vec_env,
+        tensorboard_log=str(config.tb_dir),
+        seed=config.seed,
+        device="cuda:0",
+        )
     else:
-        if config.env_name == "CartPole-v1":
-            algo = DQN(
+        algo = SAC(
             config.rl.policy_name,
             vec_env,
             tensorboard_log=str(config.tb_dir),
             seed=config.seed,
             device="cuda:0",
-            )
-        else:
-            algo = SAC(
-                config.rl.policy_name,
-                vec_env,
-                tensorboard_log=str(config.tb_dir),
-                seed=config.seed,
-                device="cuda:0",
-            )
+        )
     signal_handler.model = algo
     signal_handler.checkpoint_dir = str(config.checkpoints_path)
 
@@ -185,20 +185,20 @@ def train(config_input: str):
 
     @logger.catch
     def _train():
-        if config_obj.is_clip_rewarded:
-            logger.info("Running CLIP-rewarded SAC. Spawning workers.")
-            args = ("nccl", config_obj, config_dump)
-            multiprocessing.spawn(
-                fn=init_process,
-                args=args,
-                nprocs=config_obj.rl.n_workers,
-                join=True,
-                daemon=False,
-                start_method="spawn",
-            )
-        else:
-            logger.info("Running SAC for ground truth.")
-            primary_worker(config_obj, config_dump)
+        # if config_obj.is_clip_rewarded:
+        #     logger.info("Running CLIP-rewarded SAC. Spawning workers.")
+        #     args = ("nccl", config_obj, config_dump)
+        #     multiprocessing.spawn(
+        #         fn=init_process,
+        #         args=args,
+        #         nprocs=config_obj.rl.n_workers,
+        #         join=True,
+        #         daemon=False,
+        #         start_method="spawn",
+        #     )
+        # else:
+        logger.info("Running SAC for ground truth.")
+        primary_worker(config_obj, config_dump)
 
     _train()
 

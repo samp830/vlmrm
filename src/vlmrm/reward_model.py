@@ -846,6 +846,7 @@ def load_reward_model(
     print(model_name_prefix, pretrained)
 
     if "siglip" in pretrained.lower():
+        from transformers import AutoProcessor
         model = AutoModel.from_pretrained("google/siglip-base-patch16-224")
         processor = AutoProcessor.from_pretrained("google/siglip-base-patch16-224")
         model = SigLipReward(model=model, 

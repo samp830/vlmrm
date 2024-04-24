@@ -125,12 +125,12 @@ class Config(BaseModel):
 
             if len(self.reward.target_prompts) == 0:
                 raise ValueError(f"({self.reward.target_prompts=}) must not be empty.")
-            if self.rl.train_freq % self.rl.episode_length != 0:
-                raise ValueError(
-                    f"({self.rl.train_freq=}) must be divisible by "
-                    f"({self.rl.episode_length=}), so that training happens after "
-                    "full episodes are completed."
-                )
+            # if self.rl.train_freq % self.rl.episode_length != 0:
+            #     raise ValueError(
+            #         f"({self.rl.train_freq=}) must be divisible by "
+            #         f"({self.rl.episode_length=}), so that training happens after "
+            #         "full episodes are completed."
+            #     )
             if self.reward.batch_size % self.rl.n_workers != 0:
                 raise ValueError(
                     f"({self.reward.batch_size=}) corresponds to the total size of the "
@@ -171,7 +171,7 @@ class CLIPRewardConfig(BaseModel):
     cache_dir: str
     camera_config: Optional[Dict[str, Any]] = None
     textured: bool = True
-    hf_dict: Dict[str, Any]= {"google":{"embed_dim":768}, "facebook":{"embed_dim":768}}
+    hf_dict: Dict[str, Any]= {"google":{"embed_dim":768}, "facebook":{"embed_dim":768}, "Salesforce":{"embed_dim":512}}
 
     @computed_field
     @property

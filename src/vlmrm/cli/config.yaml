@@ -16,7 +16,7 @@ reward:
   # of n_envs * episode_length so that all batches can be of the
   # same size (no support for variable batch size as of now.)
   # reward_func: goal_baseline_reg
-  reward_func: contrastive
+  reward_func: itm_head
   multi_prompt: False
   batch_size: 1600
   alpha: 1.0 # Alpha value of Baseline CLIP (CO-RELATE)

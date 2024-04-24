@@ -160,7 +160,7 @@ class GroundTruthConfig(BaseModel):
 class CLIPRewardConfig(BaseModel):
     name: Literal["clip"]
     pretrained_model: str
-    reward_func: Literal["goal_baseline_reg", "cosine", "l2", "contrastive"] 
+    reward_func: Literal["goal_baseline_reg", "cosine", "l2", "contrastive", "itm_head"] 
     sparse: bool = False
     multi_prompt: bool = False
     threshold: float = 0.5

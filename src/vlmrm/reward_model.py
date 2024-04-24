@@ -706,8 +706,6 @@ class BLIPReward(nn.Module):
         else:
             target = self.embed_prompts(target_prompts).mean(dim=0, keepdim=True)
             baseline = self.embed_prompts(baseline_prompts).mean(dim=0, keepdim=True)
-        # if self.item_head:
-            
         direction = target - baseline
         # Register them as buffers so they are automatically moved around.
         self.register_buffer("target", target)
@@ -730,7 +728,7 @@ class BLIPReward(nn.Module):
         self.projection = self.compute_projection(alpha)
 
     @torch.inference_mode()
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, vision_output) -> torch.Tensor:
         # x = self.processor.image_processor(x)
         # with torch.no_grad():
         #     # print(x)
@@ -792,8 +790,16 @@ class BLIPReward(nn.Module):
         elif self.reward_func == "l2":
             y = 1 / nn.functional.pairwise_distance(x, self.target)
         
-        # elif self.reward_func == "itm_head":
-            
+        elif self.reward_func == "itm_head":
+            input_ids = self.tokenize_prompts(self.target_prompts)
+            image_atts = torch.ones(x.size()[:-1], dtype=torch.long)
+            itm_embeds = self.embed_module.text_encoder(
+                input_ids=input_ids,
+                encoder_hidden_states=vision_output,
+                encoder_attention_mask=image_atts,
+            )[0]
+            y = self.embed_module.itm_head(itm_embeds[:, 0, :])[:,0]
+            # print(y)
         
         if not self.sparse:
             return y
@@ -828,7 +834,8 @@ class BLIPReward(nn.Module):
             else:
                 vision_outputs = self.embed_module.vision_model(pixel_values=x.cuda(rank))[0]
                 x = normalize(self.embed_module.vision_proj(vision_outputs[:, 0, :].cuda(rank)), dim=-1)
-        return x
+        return x, vision_outputs
+    
 
 
 def load_reward_model(
@@ -1025,14 +1032,20 @@ def dist_worker_compute_reward(
 
         if type(reward_model) == CLIPReward:
             embeddings = reward_model.embed_module(worker_frames)
+            rewards = reward_model(embeddings)
+        elif type(reward_model) == BLIPReward:
+            embeddings, attention = reward_model.embed_images(worker_frames, rank)
+            rewards = reward_model(embeddings, attention)
+
         else:
             embeddings = reward_model.embed_images(worker_frames, rank)
-        rewards = reward_model(embeddings)
+            rewards = reward_model(embeddings)
 
     def zero_t():
         return torch.zeros_like(rewards)
 
     recv_rewards = [zero_t() for _ in range(num_workers)] if rank == 0 else []
+    rewards = rewards.contiguous()
     dist.gather(rewards, gather_list=recv_rewards, dst=0)
 
     if rank == 0:

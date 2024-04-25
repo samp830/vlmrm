@@ -31,6 +31,7 @@ from vlmrm.trainer.config import CLIPRewardConfig, Config
 signal.signal(signal.SIGINT, end_signal_handler)
 signal.signal(signal.SIGTERM, end_signal_handler)
 
+#test
 
 def showwarning_with_traceback(
     message, category, filename, lineno, file=None, line=None

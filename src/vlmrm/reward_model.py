@@ -869,7 +869,7 @@ def load_reward_model(
         return model.eval()
 
     elif "flava" in pretrained.lower():
-        from transformers import FlavaModel
+        from transformers import AutoProcessor, FlavaModel
         model = FlavaModel.from_pretrained("facebook/flava-full")
         processor = AutoProcessor.from_pretrained("facebook/flava-full")
         model = FLAVAReward(model=model, 

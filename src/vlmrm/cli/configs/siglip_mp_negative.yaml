@@ -1,0 +1,56 @@
+env_name: CartPole-v1 # RL environment name
+base_path: /karen/vlmrm_logs # Base path to save logs and checkpoints
+seed: 42 # Seed for reproducibility
+description: Cartpole training using CLIP reward
+tags: # Wandb tags
+  - clip
+reward:
+  name: clip
+  # pretrained_model: ViT-B-32/laion2b_s34b_b79k # CLIP model name
+  pretrained_model: google/siglip-base-patch16-224k # CLIP model name
+  # pretrained_model: facebook/flava-full # CLIP model name
+  # pretrained_model: Salesforce/blip-image-captioning-base
+  # CLIP batch size per synchronous inference step.
+  # Batch size must be divisible by n_workers (GPU count)
+  # so that it can be shared among workers, and must be a divisor
+  # of n_envs * episode_length so that all batches can be of the
+  # same size (no support for variable batch size as of now.)
+  # reward_func: goal_baseline_reg
+  reward_func: contrastive
+  multi_prompt: True
+  batch_size: 1600
+  alpha: 1.0 # Alpha value of Baseline CLIP (CO-RELATE)
+  target_prompts: # Description of the goal state
+    - pole vertically upright on top of the cart
+    - pole standing straight up on the cart
+    - pole in a vertical position atop the cart
+    - upright pole stacked on the cart
+  baseline_prompts: # Description of the environment
+    - pole and cart
+    - pole on top of block cart
+    - simple cart with a pole on top
+    - cart with an attached pole
+    - pole falling on top of cart # negative prompt
+    - pole lying horizontally on cart # negative prompt
+    - falling pole on cart # negative prompt
+    - horizontal pole on cart # negative prompt
+  # Path to pre-saved model weights. When executing multiple runs,
+  # mount a volume to this path to avoid downloading the model
+  # weights multiple times.
+  cache_dir: /karen/.cache
+rl:
+  policy_name: MlpPolicy
+  n_steps: 3000000 # Total number of simulation steps to be collected.
+  n_envs_per_worker: 4 # Number of environments per worker (GPU)
+  episode_length: 200 # Desired episode length
+  learning_starts: 75000 # Number of env steps to collect before training
+  train_freq: 200 # Number of collected env steps between training iterations
+  batch_size: 128 # SAC buffer sample size per gradient step
+  gradient_steps: 128 # Number of samples to collect from the buffer per training step
+  tau: 0.005 # SAC target network update rate
+  gamma: 0.99 # SAC discount factor
+  learning_rate: 2.3e-3 # SAC optimizer learning rate
+logging:
+  checkpoint_freq: 800 # Number of env steps between checkpoints
+  video_freq: 800 # Number of env steps between videos
+  # tensorboard_freq: 800

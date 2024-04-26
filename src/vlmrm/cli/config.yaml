@@ -16,7 +16,7 @@ reward:
   # of n_envs * episode_length so that all batches can be of the
   # same size (no support for variable batch size as of now.)
   # reward_func: goal_baseline_reg
-  reward_func: itm_head
+  reward_func: contrastive
   multi_prompt: False
   batch_size: 1600
   alpha: 1.0 # Alpha value of Baseline CLIP (CO-RELATE)
@@ -34,7 +34,9 @@ reward:
     # - standalone pole with a compact cart
     # - simple cart with a pole
     # - single pole connected to cart
-    # - Cart with an attached pole
+    # - cart with an attached pole
+    # - pole leaning at an angle with cart
+    # - pole lying horizontally with cart 
   # Path to pre-saved model weights. When executing multiple runs,
   # mount a volume to this path to avoid downloading the model
   # weights multiple times.

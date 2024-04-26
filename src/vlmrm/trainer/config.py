@@ -117,11 +117,11 @@ class Config(BaseModel):
                     "When doing CLIP-rewarded training, a tensorboard logging "
                     "frequency does not need to be specified."
                 )
-            if len(self.reward.target_prompts) != len(self.reward.baseline_prompts):
-                raise ValueError(
-                    f"({self.reward.target_prompts=}) and "
-                    f"({self.reward.baseline_prompts=}) must have the same length."
-                )
+            # if len(self.reward.target_prompts) != len(self.reward.baseline_prompts):
+            #     raise ValueError(
+            #         f"({self.reward.target_prompts=}) and "
+            #         f"({self.reward.baseline_prompts=}) must have the same length."
+            #     )
 
             if len(self.reward.target_prompts) == 0:
                 raise ValueError(f"({self.reward.target_prompts=}) must not be empty.")

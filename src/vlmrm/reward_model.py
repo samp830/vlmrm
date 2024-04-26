@@ -192,16 +192,16 @@ class SigLipReward(nn.Module):
         else:
             target = self.embed_prompts(target_prompts)
             baseline = self.embed_prompts(baseline_prompts)
-        direction = target - baseline
+        if self.reward_func == "goal_baseline_reg":
+            direction = target - baseline
+            self.register_buffer("direction", direction)
+            projection = self.compute_projection(alpha)
+            self.register_buffer("projection", projection)
         # Register them as buffers so they are automatically moved around.
         self.register_buffer("target", target)
         self.register_buffer("baseline", baseline)
-        self.register_buffer("direction", direction)
-
-
         self.alpha = alpha
-        projection = self.compute_projection(alpha)
-        self.register_buffer("projection", projection)
+       
     
     def compute_projection(self, alpha: float) -> torch.Tensor:
         projection = self.direction.T @ self.direction / torch.norm(self.direction) ** 2
@@ -289,7 +289,7 @@ class SigLipReward(nn.Module):
         elif self.reward_func == "cosine":
             if self.multi_prompt:
                 cosines = torch.stack([torch.nn.functional.cosine_similarity(x, t) for t in self.target])
-                y = cosines.mean()
+                y = cosines.mean(dim=0)
             else:
                 y = nn.functional.cosine_similarity(x, self.target)
         elif self.reward_func == "l2":

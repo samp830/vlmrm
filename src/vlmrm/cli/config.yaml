@@ -1,6 +1,6 @@
 env_name: CartPole-v1 # RL environment name
 base_path: /data/sparajuli/training # Base path to save logs and checkpoints
-seed: 99 # Seed for reproducibility
+seed: 42 # Seed for reproducibility
 description: Cartpole training using CLIP reward
 tags: # Wandb tags
   - clip
@@ -35,8 +35,8 @@ reward:
     # - simple cart with a pole
     # - single pole connected to cart
     # - cart with an attached pole
-    # - pole leaning at an angle with cart
-    # - pole lying horizontally with cart 
+    # - tilted pole balancing on cart
+    # - horizontal pole on cart 
   # Path to pre-saved model weights. When executing multiple runs,
   # mount a volume to this path to avoid downloading the model
   # weights multiple times.

@@ -141,34 +141,7 @@ class CLIPReward(nn.Module):
 
     def embed_images(self, x):
         return self.embed_module.forward(x)
-    
-# class CLIPEmbed(nn.Module):
-#     def __init__(self, clip_model):
-#         super().__init__()
-#         self.clip_model = clip_model
-#         if isinstance(clip_model.visual.image_size, int):
-#             image_size = clip_model.visual.image_size
-#         else:
-#             image_size = clip_model.visual.image_size[0]
-#         self.transform = image_transform(image_size)
-
-#     @torch.inference_mode()
-#     def forward(self, x):
-#         if x.shape[1] != 3:
-#             x = x.permute(0, 3, 1, 2)
-#             # x = x.cpu()
-#             # print(x[0].shape)
-#             # image = Image.fromarray(x[0].permute(1, 2, 0).numpy(), 'RGB')
-#             # print(image)
-#             # print(type(image))
-#             # image.save('output_image.png', 'PNG')
-#             # import pdb; pdb.set_trace()
-
-#         with torch.no_grad(), torch.autocast("cuda", enabled=torch.cuda.is_available()):
-#             x = self.transform(x)
-#             x = self.clip_model.encode_image(x, normalize=True)
-#         return x
-    
+        
 
 class SigLipReward(nn.Module):
     def __init__(
@@ -212,8 +185,13 @@ class SigLipReward(nn.Module):
         self.multi_prompt = multi_prompt
         self.target_prompts = target_prompts
         self.baseline_prompts = baseline_prompts
-        target = self.embed_prompts(target_prompts).mean(dim=0, keepdim=True)
-        baseline = self.embed_prompts(baseline_prompts).mean(dim=0, keepdim=True)
+        if self.reward_func == "goal_baseline_reg" or not self.multi_prompt:
+            target = self.embed_prompts(target_prompts).mean(dim=0, keepdim=True)
+            baseline = self.embed_prompts(baseline_prompts).mean(dim=0, keepdim=True)
+
+        else:
+            target = self.embed_prompts(target_prompts)
+            baseline = self.embed_prompts(baseline_prompts)
         direction = target - baseline
         # Register them as buffers so they are automatically moved around.
         self.register_buffer("target", target)
@@ -245,6 +223,7 @@ class SigLipReward(nn.Module):
         x = x / torch.norm(x, dim=-1, keepdim=True)
         if self.reward_func == "contrastive":
             if self.multi_prompt:
+
                 sim_s_g = torch.stack([nn.functional.cosine_similarity(x, target_embedding) for target_embedding in self.target])
                 sim_s_b = torch.stack([nn.functional.cosine_similarity(x, baseline_embedding) for baseline_embedding in self.baseline])
             else:
@@ -308,7 +287,11 @@ class SigLipReward(nn.Module):
         if self.reward_func == "goal_baseline_reg":
             y = 1 - (torch.norm((x - self.target) @ self.projection, dim=-1) ** 2) / 2
         elif self.reward_func == "cosine":
-            y = nn.functional.cosine_similarity(x, self.target)
+            if self.multi_prompt:
+                cosines = torch.stack([torch.nn.functional.cosine_similarity(x, t) for t in self.target])
+                y = cosines.mean()
+            else:
+                y = nn.functional.cosine_similarity(x, self.target)
         elif self.reward_func == "l2":
             y = 1 / nn.functional.pairwise_distance(x, self.target)
         

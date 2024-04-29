@@ -1,3 +1,16 @@
+# Reinforcement Learning Spring 2024 Final Project: Multimodal Foundation Models as Reward Models
+### Authors: Authors: Samyak Parajuli, Jiahui (Karen) Chen
+
+## Run Intructions:
+From `vlmrm/src/vlmrm/cli` run:
+`cat <path to config> | python train.py -`
+
+All of our experiment run configs are in: `vlmrm/src/vlmrm/cli/configs`
+
+Our plotting code and CSVs are [here](https://github.com/JiahuiKChen/vlmrm_plotting).
+
+
+# Below is from upstream repo:
 # `vlmrm`
 
 This is the repository from the paper "[Vision-Language Models are Zero-Shot Reward Models for Reinforcement Learning](https://openreview.net/forum?id=N0I2RtD8je)" (ICLR 2024). We provide training scripts that can be used to reproduce our experiments, and a Python package that can be installed with pip and imported from another project.
